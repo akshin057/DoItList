@@ -35,6 +35,9 @@ class ProjectRepositoryImpl @Inject constructor(
     override fun observeProjects(): Flow<List<Project>> =
         db.projectsDao().observeProjects().map { list -> list.map { it.toDomain() } }
 
+    override suspend fun getProjectByLocalId(localId: Long): Project? =
+        db.projectsDao().getByLocalId(localId)?.toDomain()
+
     override suspend fun createProject(project: Project) = withContext(Dispatchers.IO) {
         val localId = db.projectsDao().addProject(
             project.toEntity(isSynced = false)

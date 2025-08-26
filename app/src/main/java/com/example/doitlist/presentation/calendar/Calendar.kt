@@ -33,14 +33,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.rememberCoroutineScope
 import com.example.doitlist.domain.model.Task
+import com.example.doitlist.presentation.projects.ProjectViewModel
 import com.example.doitlist.presentation.tasks.TasksViewModel
 import com.example.doitlist.presentation.ui.BottomNavBar
 import com.example.doitlist.presentation.ui.Calendar
+import com.example.doitlist.presentation.ui.LocalDrawerActions
 import com.example.doitlist.presentation.ui.NeonFab
+import com.example.doitlist.presentation.ui.TaskBottomSheet
 import com.example.doitlist.presentation.ui.TaskListItem
+import com.example.doitlist.presentation.ui.TaskSwipeItem
 import com.example.doitlist.presentation.ui.theme.BackColor
 import com.example.doitlist.presentation.ui.theme.TextColor
+import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.minus
@@ -60,10 +69,11 @@ fun GreetingPreview() {
 @Composable
 fun CalendarScreen(
     navController: NavController,
-    tasksViewModel: TasksViewModel
+    vm: TasksViewModel,
+    projectVm: ProjectViewModel
 ) {
 
-    val uiState by tasksViewModel.uiState.collectAsState()
+    val uiState by vm.uiState.collectAsState()
 
     val tz = remember { TimeZone.currentSystemDefault() }
     val today = remember { kotlinx.datetime.Clock.System.now().toLocalDateTime(tz).date }
@@ -86,7 +96,8 @@ fun CalendarScreen(
             .dayOfMonth
     }
 
-    val offset = remember(currentMonthFirst) { currentMonthFirst.dayOfWeek.isoDayNumber - 1 } // Пн=0
+    val offset =
+        remember(currentMonthFirst) { currentMonthFirst.dayOfWeek.isoDayNumber - 1 } // Пн=0
     val weeks = remember(daysInMonth, offset) {
         val total = offset + daysInMonth
         kotlin.math.max(5, kotlin.math.ceil(total / 7.0).toInt())
@@ -107,12 +118,23 @@ fun CalendarScreen(
     }
 
 
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true
+    )
+
+    val scope = rememberCoroutineScope()
+
+    var editingTask by remember { mutableStateOf<Task?>(null) }
+
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val projectUiState by projectVm.uiState.collectAsState()
 
     Scaffold(
         bottomBar = { BottomNavBar(navController) },
         containerColor = BackColor,
         topBar = {
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -121,7 +143,10 @@ fun CalendarScreen(
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = {}) {
+                val drawer = LocalDrawerActions.current
+                IconButton(onClick = {
+                    drawer.open()
+                }) {
                     Icon(
                         Icons.AutoMirrored.Filled.List,
                         tint = TextColor,
@@ -135,7 +160,7 @@ fun CalendarScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             NeonFab(onClick = {
-
+                scope.launch { sheetState.show() }
             })
         }
     ) { padding ->
@@ -156,7 +181,8 @@ fun CalendarScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = {
-                    currentMonthFirst = currentMonthFirst.minus(kotlinx.datetime.DatePeriod(months = 1))
+                    currentMonthFirst =
+                        currentMonthFirst.minus(kotlinx.datetime.DatePeriod(months = 1))
                 }) { Text("‹", fontSize = 28.sp, color = TextColor) }
 
                 Text(
@@ -167,7 +193,8 @@ fun CalendarScreen(
                 )
 
                 IconButton(onClick = {
-                    currentMonthFirst = currentMonthFirst.plus(kotlinx.datetime.DatePeriod(months = 1))
+                    currentMonthFirst =
+                        currentMonthFirst.plus(kotlinx.datetime.DatePeriod(months = 1))
                 }) { Text("›", fontSize = 28.sp, color = TextColor) }
             }
 
@@ -177,7 +204,7 @@ fun CalendarScreen(
                     .padding(horizontal = 14.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс").forEach {
+                listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс").forEach {
                     Text(it, fontSize = 18.sp, color = TextColor)
                 }
             }
@@ -217,7 +244,54 @@ fun CalendarScreen(
                     items = itemsList,
                     key = { it.localId ?: it.remoteId ?: it.name }
                 ) { task ->
-                    TaskListItem(task, onClick = {})
+                    TaskSwipeItem(
+                        task,
+                        onDelete = { vm.onDeleteTask(it) },
+                        onComplete = { vm.onCompleteTask(it) },
+                        onClick = {
+                            editingTask = task
+                            scope.launch { sheetState.show() }
+                        }
+                    )
+                }
+            }
+
+            if (sheetState.isVisible) {
+                ModalBottomSheet(
+                    onDismissRequest = { scope.launch { sheetState.hide() } },
+                    sheetState = sheetState,
+                    tonalElevation = 8.dp,
+                    containerColor = BackColor
+                ) {
+                    TaskBottomSheet(
+                        onDismiss = { scope.launch { sheetState.hide() } },
+                        onSave = { task ->
+                            scope.launch {
+                                if (editingTask == null) {
+                                    val now = Clock.System.now()
+                                    vm.onCreateTask(
+                                        name = task.name,
+                                        description = task.description,
+                                        projectId = task.projectId,
+                                        recurrenceId = task.recurrenceId,
+                                        importance = task.importance,
+                                        startDate = now,
+                                        endDate = task.endDate,
+                                        completedAt = null,
+                                        reminderTime = null,
+                                        updatedAt = now
+                                    )
+                                } else {
+                                    vm.onUpdateTask(task)
+                                }
+                                editingTask = null
+                                sheetState.hide()
+                            }
+                        },
+                        task = editingTask,
+                        projects = projectUiState.projects,
+                        date = kotlinx.datetime.LocalDate(year, monthNumber, selectedDay)
+                    )
                 }
             }
         }

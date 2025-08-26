@@ -104,4 +104,26 @@ class TaskServiceImpl @Inject constructor(
             else -> throw ResponseException(resp, resp.bodyAsText())
         }
     }
+
+    override suspend fun deleteTasksByProject(projectId: Long): Boolean {
+        val resp = client.delete("/tasks/delete/project/$projectId") {
+            withAuthHeader()
+        }
+
+        return when (resp.status) {
+            HttpStatusCode.OK -> true
+            else -> throw ResponseException(resp, resp.bodyAsText())
+        }
+    }
+
+    override suspend fun rescheduleTask(taskId: Long): Boolean {
+        val resp = client.post("/tasks/reschedule/$taskId") {
+            withAuthHeader()
+        }
+
+        return when (resp.status) {
+            HttpStatusCode.OK -> true
+            else -> throw ResponseException(resp, resp.bodyAsText())
+        }
+    }
 }

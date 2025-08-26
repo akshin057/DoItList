@@ -23,5 +23,7 @@ class ProjectManager @Inject constructor(
 
     suspend fun refresh() = repo.refreshProjects()
 
-    suspend fun getProjectsByDate(date: Instant) : List<Project> = repo.getProjectsByDate(date)
+    suspend fun getProjectsByDate(date: Instant): List<Project> = repo.getProjectsByDate(date)
+
+    suspend fun getProjectByLocalId(localId: Long): Project? = repo.getProjectByLocalId(localId)
 }

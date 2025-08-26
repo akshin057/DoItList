@@ -10,14 +10,17 @@ import com.example.doitlist.data.remote.task.TaskService
 import com.example.doitlist.domain.model.Task
 import com.example.doitlist.domain.repository.TaskRepository
 import com.example.doitlist.utils.NetworkUtils
+import com.example.doitlist.utils.endOfToday
 import com.example.doitlist.utils.mappers.toDTO
 import com.example.doitlist.utils.mappers.toDomain
 import com.example.doitlist.utils.mappers.toEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import javax.inject.Inject
 
@@ -51,6 +54,10 @@ class TaskRepositoryImpl @Inject constructor(
 
         db.tasksDao().upsertAll(remoteTasks)
     }
+
+    override fun observeTasksByProject(projectId: Long): Flow<List<Task>> =
+        db.tasksDao().observeTasksByProject(projectId)
+            .map { list -> list.map { it.toDomain() } }
 
     override suspend fun createTask(task: Task) = withContext(Dispatchers.IO) {
 
@@ -103,7 +110,37 @@ class TaskRepositoryImpl @Inject constructor(
             try {
                 taskService.deleteTask(entity.remoteId)
             } catch (e: Exception) {
+                println(e.message)
+            }
+        }
+    }
 
+    override suspend fun rescheduleTask(task: Task) {
+        val localId = task.localId ?: error("Невозможно перенести несохраненную задачу")
+
+        db.tasksDao().rescheduleTask(localId, endOfToday(), Clock.System.now())
+
+        val taskRemoteId = task.remoteId ?: db.tasksDao().getByLocalId(localId)?.remoteId
+
+        if (NetworkUtils.isNetworkAvailable(context) && taskRemoteId != null) {
+            try {
+                taskService.rescheduleTask(taskRemoteId)
+            } catch (e: Exception) {
+                println(e.message)
+            }
+        }
+    }
+
+    override suspend fun deleteTasksByProject(projectId: Long) = withContext(Dispatchers.IO) {
+
+        db.tasksDao().deleteTasksByProject(projectId)
+        val projectRemoteId = db.projectsDao().getByLocalId(projectId)?.remoteId
+
+        if (projectRemoteId != null && NetworkUtils.isNetworkAvailable(context)) {
+            try {
+                taskService.deleteTasksByProject(projectRemoteId)
+            } catch (e: Exception) {
+                println(e.message)
             }
         }
     }
@@ -154,8 +191,23 @@ class TaskRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteAllTasks() = withContext(Dispatchers.IO) {
+        val allTasks = db.tasksDao().debugDump()
+
+        if (NetworkUtils.isNetworkAvailable(context)) {
+            allTasks.mapNotNull { it.remoteId }
+                .distinct()
+                .forEach { remoteId ->
+                    try {
+                        taskService.deleteTask(remoteId)
+                    } catch (e: Exception) {
+                        Log.w("TaskRepository", "Remote delete failed for id=$remoteId", e)
+                    }
+                }
+        }
+
         db.tasksDao().clearAll()
     }
+
 
     override suspend fun getTasksByDate(date: Instant): List<Task> = withContext(Dispatchers.IO) {
         db.tasksDao().getTasksByDate(date).map { it.toDomain() }

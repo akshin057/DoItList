@@ -11,3 +11,25 @@ data class UserDTO(
     val email: String,
     val password: String
 )
+
+@Serializable
+data class ChangeLoginDTO(
+    val login: String
+)
+
+@Serializable
+data class ChangeEmailDTO(
+    val email: String
+)
+
+@Serializable
+data class ChangeNameDTO(
+    val surname: String,
+    val name: String,
+    val lastName: String
+)
+
+@Serializable
+data class ChangePasswordDTO(
+    val password: String
+)

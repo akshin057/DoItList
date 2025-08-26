@@ -1,6 +1,5 @@
-package com.example.doitlist.presentation.routine
+package com.example.doitlist.presentation.projects
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -24,7 +22,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -41,44 +38,49 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.doitlist.R
-import com.example.doitlist.domain.model.Routine
+import com.example.doitlist.domain.model.Task
+import com.example.doitlist.presentation.tasks.TasksViewModel
 import com.example.doitlist.presentation.ui.LocalDrawerActions
 import com.example.doitlist.presentation.ui.NeonFab
-import com.example.doitlist.presentation.ui.RoutineBottomSheet
 import com.example.doitlist.presentation.ui.RoutineSwipeItem
 import com.example.doitlist.presentation.ui.Screen
+import com.example.doitlist.presentation.ui.TaskBottomSheet
+import com.example.doitlist.presentation.ui.TaskSwipeItem
 import com.example.doitlist.presentation.ui.theme.BackColor
 import com.example.doitlist.presentation.ui.theme.FabBackColor
 import com.example.doitlist.presentation.ui.theme.TextColor
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RoutineScreen(navController: NavController, vm: RoutinesViewModel) {
+fun TaskForProjectScreen(
+    navController: NavController,
+    vm: TasksViewModel,
+    projectVm: ProjectViewModel,
+    projectId: Long
+) {
 
-    val snackbarHostState = remember { SnackbarHostState() }
+    val tasks by remember(projectId) { vm.observeProjectTasks(projectId) }
+        .collectAsState(initial = emptyList())
+
+    val projectUiState by projectVm.uiState.collectAsState()
+
+    val currentProject = remember(projectUiState.projects, projectId) {
+        projectUiState.projects.firstOrNull { it.localId == projectId }
+    }
 
     val uiState by vm.uiState.collectAsState()
 
-    var editingRoutine by remember { mutableStateOf<Routine?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    var editingTask by remember { mutableStateOf<Task?>(null) }
 
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true
@@ -97,7 +99,6 @@ fun RoutineScreen(navController: NavController, vm: RoutinesViewModel) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = BackColor,
         topBar = {
             Row(
                 modifier = Modifier
@@ -119,7 +120,9 @@ fun RoutineScreen(navController: NavController, vm: RoutinesViewModel) {
                     )
                 }
 
-                IconButton(onClick = { vm.onDeleteAllRoutines() }) {
+                IconButton(onClick = {
+                    vm.onDeleteProjectTasks(projectId)
+                }) {
                     Icon(
                         painter = painterResource(R.drawable.bin),
                         tint = TextColor,
@@ -128,13 +131,6 @@ fun RoutineScreen(navController: NavController, vm: RoutinesViewModel) {
                     )
                 }
             }
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            NeonFab(onClick = {
-                editingRoutine = null
-                scope.launch { sheetState.show() }
-            })
         },
         bottomBar = {
             Row(
@@ -159,29 +155,42 @@ fun RoutineScreen(navController: NavController, vm: RoutinesViewModel) {
 
             }
         },
+        containerColor = BackColor,
+        floatingActionButton = {
+            NeonFab(
+                onClick = {
+                    editingTask = null
+                    scope.launch {
+                        sheetState.show()
+                    }
+                }
+            )
+        }
     ) { padding ->
 
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .padding(padding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(15.dp),
+                horizontalArrangement = Arrangement.Start
+            ) {
+                Text(currentProject?.name ?: "Проект", color = TextColor, fontSize = 24.sp)
+            }
 
-            Image(
-                painter = painterResource(R.drawable.routine),
-                contentDescription = null,
-                modifier = Modifier.size(140.dp)
-            )
-
-            Text(
-                "Выполняй задачи каждый день и заводи новые привычки",
-                color = Color.White,
-                textAlign = TextAlign.Center,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.width(250.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(15.dp),
+                horizontalArrangement = Arrangement.Start
+            ) {
+                Text(currentProject?.description ?: "", color = TextColor, fontSize = 24.sp)
+            }
 
             HorizontalDivider(
                 modifier = Modifier
@@ -216,66 +225,80 @@ fun RoutineScreen(navController: NavController, vm: RoutinesViewModel) {
                         )
                     }
                 ) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        items(uiState.routines) { routine ->
-                            RoutineSwipeItem(
-                                routine,
-                                onClick = {
-                                    editingRoutine = routine
-                                    scope.launch { sheetState.show() }
-                                },
-                                onDelete = {
-                                    vm.onDeleteRoutine(it)
-                                },
-                                onComplete = {
-                                    vm.onCompleteRoutine(it)
-                                },
-                                unComplete = {
-                                    vm.unCompleteRoutine(it)
-                                }
+                    if (tasks.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "По этому проекту пока нет задач",
+                                color = TextColor,
+                                fontSize = 18.sp
                             )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            items(tasks) { task ->
+                                TaskSwipeItem(
+                                    task,
+                                    onClick = {
+                                        editingTask = task
+                                        scope.launch { sheetState.show() }
+                                    },
+                                    onDelete = { vm.onDeleteTask(it) },
+                                    onComplete = { vm.onCompleteTask(it) }
+                                )
+                            }
                         }
                     }
                 }
-            }
-        }
 
-        if (sheetState.isVisible) {
-            ModalBottomSheet(
-                onDismissRequest = { scope.launch { sheetState.hide() } },
-                sheetState = sheetState,
-                tonalElevation = 8.dp,
-                containerColor = BackColor
-            ) {
-                RoutineBottomSheet(
-                    onDismiss = { scope.launch { sheetState.hide() } },
-                    onSave = { routine ->
-                        scope.launch {
-                            if (editingRoutine == null) {
-                                val today = Clock.System.now()
-                                    .toLocalDateTime(TimeZone.currentSystemDefault())
-                                    .date
-                                vm.onCreateRoutine(
-                                    name = routine.name,
-                                    description = routine.description,
-                                    startDate = today,
-                                    reminderTime = routine.reminderTime
-                                )
-                            } else {
-                                vm.onUpdateRoutine(routine)
-                            }
-                            editingRoutine = null
-                            sheetState.hide()
-                        }
-                    },
-                    routine = editingRoutine
-                )
+                if (sheetState.isVisible) {
+                    ModalBottomSheet(
+                        onDismissRequest = { scope.launch { sheetState.hide() } },
+                        sheetState = sheetState,
+                        tonalElevation = 8.dp,
+                        containerColor = BackColor
+                    ) {
+                        TaskBottomSheet(
+                            onDismiss = { scope.launch { sheetState.hide() } },
+                            onSave = { task ->
+                                scope.launch {
+                                    if (editingTask == null) {
+                                        val now = Clock.System.now()
+                                        vm.onCreateTask(
+                                            name = task.name,
+                                            description = task.description,
+                                            projectId = task.projectId,
+                                            recurrenceId = task.recurrenceId,
+                                            importance = task.importance,
+                                            startDate = now,
+                                            endDate = task.endDate,
+                                            completedAt = null,
+                                            reminderTime = null,
+                                            updatedAt = now
+                                        )
+                                    } else {
+                                        vm.onUpdateTask(task)
+                                    }
+                                    editingTask = null
+                                    sheetState.hide()
+                                }
+                            },
+                            task = editingTask,
+                            projects = projectUiState.projects,
+                            currentProject = currentProject
+                        )
+                    }
+                }
             }
         }
     }

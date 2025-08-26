@@ -108,10 +108,11 @@ fun RegisterScreen(
                 }
             }
 
-            else -> {}
+            else -> {
+
+            }
         }
     }
-
 
     val tfColors = TextFieldDefaults.colors(
         unfocusedContainerColor = Color.Transparent,

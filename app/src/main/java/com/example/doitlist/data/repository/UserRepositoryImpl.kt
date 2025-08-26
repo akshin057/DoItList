@@ -23,4 +23,22 @@ class UserRepositoryImpl @Inject constructor(
         return token
     }
 
+    override suspend fun getUserSettings(): UserDTO? {
+        val user = api.getUserSettings()
+        if (user != null) return user
+        else return null
+    }
+
+    override suspend fun changePassword(newPassword: String): UserDTO? =
+        api.changePassword(newPassword)
+
+    override suspend fun changeEmail(newEmail: String): UserDTO? =
+        api.changeEmail(newEmail)
+
+    override suspend fun changeName(newSurname: String, newName: String, newLastName: String): UserDTO? =
+        api.changeName(surname = newSurname, name = newName, lastName = newLastName)
+
+    override suspend fun changeLogin(newLogin: String) : UserDTO? =
+        api.changeLogin(newLogin)
+
 }

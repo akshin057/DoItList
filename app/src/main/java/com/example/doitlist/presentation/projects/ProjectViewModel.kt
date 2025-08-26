@@ -39,10 +39,10 @@ class ProjectViewModel @Inject constructor(
                 error = error
             )
         }.stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = ProjectUiState(isLoading = true)
-            )
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = ProjectUiState(isLoading = true)
+        )
 
     init {
         onRefresh()
@@ -79,8 +79,11 @@ class ProjectViewModel @Inject constructor(
 
     fun onDeleteAllProjects() = safeRun { projectManager.deleteAll() }
 
-    suspend fun getProjectsByDate(date: Instant) : List<Project> =
+    suspend fun getProjectsByDate(date: Instant): List<Project> =
         projectManager.getProjectsByDate(date)
+
+    suspend fun getProjectByLocalId(localId: Long): Project? =
+        projectManager.getProjectByLocalId(localId)
 
     private inline fun safeRun(crossinline block: suspend () -> Unit) =
         viewModelScope.launch {

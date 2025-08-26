@@ -58,4 +58,13 @@ interface TasksDAO {
 
     @Query("SELECT * FROM tasks WHERE endDate = :endDate")
     suspend fun getTasksByDate(endDate: Instant): List<TaskEntity>
+
+    @Query("SELECT * FROM tasks WHERE projectId = :projectId AND isDone = 0")
+    fun observeTasksByProject(projectId: Long): Flow<List<TaskEntity>>
+
+    @Query("DELETE FROM tasks WHERE projectId = :projectId")
+    suspend fun deleteTasksByProject(projectId: Long)
+
+    @Query("UPDATE tasks SET endDate = :newEndDate, updatedAt = :updatedAt WHERE localId = :taskId")
+    suspend fun rescheduleTask(taskId: Long, newEndDate: Instant, updatedAt: Instant)
 }

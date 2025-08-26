@@ -1,5 +1,6 @@
 package com.example.doitlist.utils
 
+import com.example.doitlist.data.remote.dto.UserDTO
 import com.example.doitlist.domain.model.Project
 import com.example.doitlist.domain.model.Routine
 import com.example.doitlist.domain.model.RoutineLog
@@ -10,6 +11,13 @@ sealed interface UiState {
     object Loading : UiState
     data class Success(val token: String) : UiState
     data class Error(val throwable: Throwable) : UiState
+}
+
+sealed interface UserUiState {
+    data object Idle : UserUiState
+    data object Loading : UserUiState
+    data class Success(val user: UserDTO) : UserUiState
+    data class Error(val message: String?) : UserUiState
 }
 
 data class TasksUiState(

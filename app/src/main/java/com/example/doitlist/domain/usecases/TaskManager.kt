@@ -23,6 +23,10 @@ class TaskManager @Inject constructor(
 
     suspend fun refresh() = repo.refreshTasks()
 
-    suspend fun getTasksByDate(date: Instant): List<Task> = repo.getTasksByDate(date)
+    fun observeTasksByProject(projectId: Long) = repo.observeTasksByProject(projectId)
+
+    suspend fun rescheduleTask(task: Task) = repo.rescheduleTask(task)
+
+    suspend fun deleteTasksByProject(projectId: Long) = repo.deleteTasksByProject(projectId)
 
 }

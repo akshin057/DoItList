@@ -58,6 +58,7 @@ import com.example.doitlist.R
 import com.example.doitlist.domain.model.Project
 import com.example.doitlist.presentation.tasks.TasksViewModel
 import com.example.doitlist.presentation.ui.BottomNavBar
+import com.example.doitlist.presentation.ui.LocalDrawerActions
 import com.example.doitlist.presentation.ui.MenuAction
 import com.example.doitlist.presentation.ui.NeonFab
 import com.example.doitlist.presentation.ui.ProjectSwipeItem
@@ -114,7 +115,10 @@ fun ProjectsScreen(navController: NavController, vm: ProjectViewModel, taskVm: T
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = {}) {
+                val drawer = LocalDrawerActions.current
+                IconButton(onClick = {
+                    drawer.open()
+                }) {
                     Icon(
                         Icons.AutoMirrored.Filled.List,
                         tint = TextColor,
@@ -215,7 +219,6 @@ fun ProjectsScreen(navController: NavController, vm: ProjectViewModel, taskVm: T
                                 }
                             )
                         }
-
                     }
                 }
             }
@@ -249,7 +252,8 @@ fun ProjectsScreen(navController: NavController, vm: ProjectViewModel, taskVm: T
                             sheetState.hide()
                         }
                     },
-                    project = editingProject
+                    project = editingProject,
+                    navController = navController
                 )
             }
         }

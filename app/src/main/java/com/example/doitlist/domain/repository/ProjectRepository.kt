@@ -19,4 +19,6 @@ interface ProjectRepository {
     suspend fun refreshProjects()
 
     suspend fun getProjectsByDate(date: Instant): List<Project>
+
+    suspend fun getProjectByLocalId(localId: Long): Project?
 }

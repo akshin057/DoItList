@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.doitlist.domain.model.Task
 import com.example.doitlist.domain.usecases.TaskManager
+import com.example.doitlist.utils.OverdueSection
 import com.example.doitlist.utils.ProjectUiState
 import com.example.doitlist.utils.TasksUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -11,13 +12,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock.System
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalTime
 import javax.inject.Inject
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.LocalDate
 
 @HiltViewModel
 class TasksViewModel @Inject constructor(
@@ -27,14 +31,38 @@ class TasksViewModel @Inject constructor(
     private val _progress = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
 
+    private val tz = TimeZone.currentSystemDefault()
+    private val selectedDate = MutableStateFlow(System.now().toLocalDateTime(tz).date)
+
+    val overdueSections: StateFlow<List<OverdueSection>> =
+        taskManager.observeTasks()
+            .map { tasks ->
+                val now = System.now()
+                val grouped = tasks
+                    .asSequence()
+                    .filter { it.isOverdueInstant(now) }
+                    .groupBy { it.endDate!!.toLocalDateTime(tz).date }
+                grouped.entries
+                    .sortedByDescending { it.key }
+                    .map { (date, list) ->
+                        OverdueSection(
+                            date = date,
+                            tasks = list.sortedBy { it.endDate }
+                        )
+                    }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val uiState: StateFlow<TasksUiState> =
         combine(
             taskManager.observeTasks(),
+            selectedDate,
             _progress,
             _error
-        ) { tasks, progress, error ->
+        ) { tasks, date, progress, error ->
+            val filtered = tasks.filter { it.occursOn(date, tz) }
             TasksUiState(
-                tasks = tasks,
+                tasks = filtered,
                 isLoading = progress,
                 error = error
             )
@@ -93,8 +121,22 @@ class TasksViewModel @Inject constructor(
         taskManager.deleteAllTasks()
     }
 
-    suspend fun getTasksByDate(endDate: Instant): List<Task> =
-        taskManager.getTasksByDate(date = endDate)
+
+    fun onRescheduleTask(task: Task) = safeRun {
+        taskManager.rescheduleTask(task)
+    }
+
+    fun onDeleteProjectTasks(projectId: Long) = safeRun {
+        taskManager.deleteTasksByProject(projectId)
+    }
+
+    fun onRescheduleTasks(tasks: List<Task>) = safeRun {
+        tasks.forEach { taskManager.rescheduleTask(it) }
+    }
+
+    fun observeProjectTasks(projectId: Long): StateFlow<List<Task>> =
+        taskManager.observeTasksByProject(projectId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private inline fun safeRun(crossinline block: suspend () -> Unit) =
         viewModelScope.launch {
@@ -108,4 +150,13 @@ class TasksViewModel @Inject constructor(
                 _progress.value = false
             }
         }
+
+    private fun Task.occursOn(date: LocalDate, tz: TimeZone): Boolean {
+        val start = startDate.toLocalDateTime(tz).date
+        val end = (endDate ?: startDate).toLocalDateTime(tz).date
+        return date >= start && date <= end
+    }
+
+    private fun Task.isOverdueInstant(now: Instant): Boolean =
+        !isDone && endDate?.let { it < now } == true
 }

@@ -21,4 +21,10 @@ interface TaskRepository {
     suspend fun refreshTasks()
 
     suspend fun getTasksByDate(date: Instant): List<Task>
+
+    fun observeTasksByProject(projectId: Long): Flow<List<Task>>
+
+    suspend fun deleteTasksByProject(projectId: Long)
+
+    suspend fun rescheduleTask(task: Task)
 }

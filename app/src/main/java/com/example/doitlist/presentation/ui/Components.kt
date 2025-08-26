@@ -1,9 +1,11 @@
 package com.example.doitlist.presentation.ui
 
 import android.graphics.Paint
+import android.os.Build
 import android.widget.EditText
 import android.widget.NumberPicker
 import androidx.annotation.DrawableRes
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -13,7 +15,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -36,7 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -79,6 +80,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -112,14 +114,19 @@ import com.example.doitlist.presentation.ui.theme.TextColor
 import com.example.doitlist.utils.Recurrence
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.Month
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.minus
 import kotlinx.datetime.toInstant
+import kotlinx.datetime.toJavaLocalDate
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.todayIn
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.time.Duration.Companion.hours
 
 val textStyle = TextStyle(
@@ -291,18 +298,21 @@ fun ProjectSwipeItem(
 fun MenuAction(
     @DrawableRes iconRes: Int,
     label: String,
+    width: Dp = 100.dp,
+    height: Dp = 120.dp,
+    size: Dp = 95.dp,
     onClick: () -> Unit
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .size(width = 100.dp, height = 120.dp)
+            .size(width = width, height = height)
             .clickable { onClick() }
     ) {
         Image(
             painter = painterResource(iconRes),
             contentDescription = label,
-            modifier = Modifier.size(95.dp)
+            modifier = Modifier.size(size)
         )
         Spacer(Modifier.height(4.dp))
         Text(label, fontSize = 18.sp, color = Color.White)
@@ -540,7 +550,8 @@ fun NeonFab(
     fabSize: Dp = 64.dp,
     glowColor: Color = NeonColor,
     iconTint: Color = Color.White,
-    backgroundColor: Color = FabBackColor
+    backgroundColor: Color = FabBackColor,
+    image: ImageVector = Icons.Default.Add
 ) {
     val iconSize = fabSize * 0.9f
 
@@ -570,7 +581,7 @@ fun NeonFab(
                     .background(glowBrush, CircleShape)
             )
             Icon(
-                imageVector = Icons.Default.Add,
+                imageVector = image,
                 contentDescription = null,
                 tint = iconTint,
                 modifier = Modifier.size(iconSize * 0.9f)
@@ -895,7 +906,8 @@ fun NumberPickerWithColor(
 fun ProjectBottomSheet(
     onDismiss: () -> Unit,
     onSave: (Project) -> Unit,
-    project: Project?
+    project: Project?,
+    navController: NavController? = null
 ) {
     var name by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
@@ -914,13 +926,6 @@ fun ProjectBottomSheet(
         mutableStateOf(
             if (dateConfirmed)
                 "%02d.%02d.%04d".format(selectedDay, selectedMonth, selectedYear)
-            else ""
-        )
-    }
-    val timeText by remember(selectedHour, selectedMinute) {
-        mutableStateOf(
-            if (dateConfirmed)
-                "%02d:%02d".format(selectedHour, selectedMinute)
             else ""
         )
     }
@@ -1066,46 +1071,109 @@ fun ProjectBottomSheet(
 
             Spacer(Modifier.height(16.dp))
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                GlowingCard(
-                    modifier = Modifier
-                        .wrapContentWidth()
-                        .height(60.dp)
-                        .clickable {
-                            val endDate = if (dateConfirmed)
-                                LocalDate(selectedYear, selectedMonth, selectedDay)
-                            else null
+            if (navController != null && project != null && project.localId != null) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    GlowingCard(
+                        modifier = Modifier
+                            .height(60.dp)
+                            .wrapContentWidth()
+                            .widthIn(min = 100.dp)
+                            .clickable {
+                                navController.navigate(Screen.TaskForProjectScreen.route(projectId = project.localId))
+                            },
+                        glowingColor = GreenNeonColor
+                    ) {
+                        Text(
+                            "Задачи по проекту",
+                            style = textStyle,
+                            color = TextColor,
+                            fontSize = 15.sp,
+                            modifier = Modifier.padding(20.dp)
+                        )
+                    }
 
-                            val today = Clock.System.now()
-                                .toLocalDateTime(TimeZone.currentSystemDefault())
-                                .date
+                    GlowingCard(
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .height(60.dp)
+                            .clickable {
+                                val endDate = if (dateConfirmed)
+                                    LocalDate(selectedYear, selectedMonth, selectedDay)
+                                else null
 
-                            val result = (project ?: Project(
-                                remoteId = null,
-                                localId = null,
-                                name = name,
-                                description = description,
-                                startDate = today,
-                                endDate = endDate,
-                            )).copy(
-                                name = name,
-                                description = description,
-                                endDate = endDate,
-                            )
+                                val today = Clock.System.now()
+                                    .toLocalDateTime(TimeZone.currentSystemDefault())
+                                    .date
 
-                            onSave(result)
-                            onDismiss()
-                        }
-                ) {
-                    Text(
-                        "Сохранить",
-                        style = textStyle,
-                        color = TextColor,
-                        fontSize = 18.sp,
-                        modifier = Modifier.padding(20.dp)
-                    )
+                                val result = (project ?: Project(
+                                    remoteId = null,
+                                    localId = null,
+                                    name = name,
+                                    description = description,
+                                    startDate = today,
+                                    endDate = endDate,
+                                )).copy(
+                                    name = name,
+                                    description = description,
+                                    endDate = endDate,
+                                )
+
+                                onSave(result)
+                                onDismiss()
+                            }
+                    ) {
+                        Text(
+                            "Сохранить",
+                            style = textStyle,
+                            color = TextColor,
+                            fontSize = 18.sp,
+                            modifier = Modifier.padding(20.dp)
+                        )
+                    }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    GlowingCard(
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .height(60.dp)
+                            .clickable {
+                                val endDate = if (dateConfirmed)
+                                    LocalDate(selectedYear, selectedMonth, selectedDay)
+                                else null
+
+                                val today = Clock.System.now()
+                                    .toLocalDateTime(TimeZone.currentSystemDefault())
+                                    .date
+
+                                val result = (project ?: Project(
+                                    remoteId = null,
+                                    localId = null,
+                                    name = name,
+                                    description = description,
+                                    startDate = today,
+                                    endDate = endDate,
+                                )).copy(
+                                    name = name,
+                                    description = description,
+                                    endDate = endDate,
+                                )
+
+                                onSave(result)
+                                onDismiss()
+                            }
+                    ) {
+                        Text(
+                            "Сохранить",
+                            style = textStyle,
+                            color = TextColor,
+                            fontSize = 18.sp,
+                            modifier = Modifier.padding(20.dp)
+                        )
+                    }
                 }
             }
+
         }
     }
 
@@ -1117,7 +1185,9 @@ fun TaskBottomSheet(
     onDismiss: () -> Unit,
     onSave: (Task) -> Unit,
     task: Task?,
-    projects: List<Project>?
+    projects: List<Project>?,
+    date: LocalDate? = null,
+    currentProject: Project? = null
 ) {
     var name by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
@@ -1193,19 +1263,31 @@ fun TaskBottomSheet(
                 dateConfirmed = false
             }
         } else {
-            val now = Clock.System.now()
-                .toLocalDateTime(TimeZone.currentSystemDefault())
+            val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
             name = ""
             description = ""
             importance = 0
-            selectedDay = now.dayOfMonth
-            selectedMonth = now.monthNumber
-            selectedYear = now.year
+
+            if (date != null) {
+                selectedDay = date.dayOfMonth
+                selectedMonth = date.monthNumber
+                selectedYear = date.year
+            } else {
+                selectedDay = now.dayOfMonth
+                selectedMonth = now.monthNumber
+                selectedYear = now.year
+            }
+
             selectedHour = now.hour
             selectedMinute = now.minute
-            dateConfirmed = false
+            dateConfirmed = date != null
             recurrenceId = Recurrence.Never.id
             recurrenceName = Recurrence.Never.displayName
+        }
+
+        if (currentProject != null) {
+            projectId = currentProject.localId
+            projectName = currentProject.name
         }
     }
 
@@ -1256,6 +1338,7 @@ fun TaskBottomSheet(
                 maxLines = 4,
                 textStyle = textStyle
             )
+
             Spacer(Modifier.height(20.dp))
 
             Row(
@@ -1320,7 +1403,6 @@ fun TaskBottomSheet(
                             .clickable {
                                 showProjectsDropdown = true
                             }
-
                     ) {
                         Text(
                             projectName,
@@ -1379,6 +1461,7 @@ fun TaskBottomSheet(
                         onDismissRequest = { showImportanceDropdown = false },
                         modifier = Modifier.background(BackColor)
                     ) {
+
                         DropdownMenuItem(
                             text = {
                                 Text(
@@ -1674,6 +1757,19 @@ fun TaskBottomSheet(
                         .wrapContentWidth()
                         .height(60.dp)
                         .clickable {
+                            val tz = TimeZone.currentSystemDefault()
+
+                            val endOfTodayInstant = run {
+                                val today = Clock.System.now().toLocalDateTime(tz).date
+                                LocalDateTime(
+                                    year = today.year,
+                                    month = today.month,
+                                    dayOfMonth = today.dayOfMonth,
+                                    hour = 23,
+                                    minute = 59
+                                ).toInstant(tz)
+                            }
+
                             val endDateInstant = if (dateConfirmed) {
                                 LocalDateTime(
                                     year = selectedYear,
@@ -1682,7 +1778,7 @@ fun TaskBottomSheet(
                                     hour = selectedHour,
                                     minute = selectedMinute
                                 ).toInstant(TimeZone.currentSystemDefault())
-                            } else null
+                            } else endOfTodayInstant
 
                             val result = (task ?: Task(
                                 remoteId = null,
@@ -1946,7 +2042,11 @@ fun Calendar(
                             onDayClick(day)
                             clickAnimationOffset = offset
                             scope.launch {
-                                animate(0f, 225f, animationSpec = tween(300)) { v, _ -> animationRadius = v }
+                                animate(
+                                    0f,
+                                    225f,
+                                    animationSpec = tween(300)
+                                ) { v, _ -> animationRadius = v }
                             }
                         }
                     }
@@ -2025,6 +2125,55 @@ fun Calendar(
                 }
             }
         }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun SectionHeader(date: LocalDate, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 30.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = formatDateHeader(date),
+            color = TextColor,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        GlowingCard(
+            modifier = Modifier
+                .height(55.dp)
+                .wrapContentWidth()
+                .widthIn(min = 100.dp)
+                .offset(y = (-10).dp)
+                .clickable { onClick() },
+            glowingColor = RedNeonColor
+        ) {
+            Text(
+                "Перенести",
+                style = textStyle,
+                color = TextColor,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(20.dp)
+            )
+        }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+fun formatDateHeader(date: LocalDate): String {
+    val tz = TimeZone.currentSystemDefault()
+    val today = Clock.System.now().toLocalDateTime(tz).date
+    val yesterday = today.minus(DatePeriod(days = 1))
+    return when (date) {
+        today -> "Сегодня"
+        yesterday -> "Вчера"
+        else -> date.toJavaLocalDate()
+            .format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.getDefault()))
     }
 }
 

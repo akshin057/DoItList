@@ -14,4 +14,7 @@ interface TaskService {
 
     suspend fun getTasks(): List<TaskDTO>
 
+    suspend fun deleteTasksByProject(projectId: Long): Boolean
+
+    suspend fun rescheduleTask(taskId: Long): Boolean
 }
